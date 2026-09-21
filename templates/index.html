@@ -1,70 +1,79 @@
-from fastapi import FastAPI, Depends, Query
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
-from sqlalchemy.orm import Session
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nigeria Social Media Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <h1>Nigeria Social Media Dashboard</h1>
+      <div class="search">
+        <input id="searchInput" type="text" placeholder="Search posts, hashtags, handles" />
+        <button onclick="loadPosts()">Search</button>
+      </div>
+    </header>
 
-from db import get_db, SocialPost
+    <section id="stats" class="stats"></section>
+    <section id="posts" class="posts"></section>
+  </div>
 
-app = FastAPI(title="Nigeria Social Media Dashboard")
-
-BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-
-
-@app.get("/", response_class=HTMLResponse)
-async def dashboard():
-    return templates.TemplateResponse("index.html", {"request": {}})
-
-
-@app.get("/api/posts")
-def get_posts(
-    q: str | None = None,
-    limit: int = Query(default=50, ge=1, le=200),
-    db: Session = Depends(get_db),
-):
-    query = db.query(SocialPost)
-
-    if q:
-        query = query.filter(
-            (SocialPost.username.ilike(f"%{q}%"))
-            | (SocialPost.caption.ilike(f"%{q}%"))
-            | (SocialPost.bio.ilike(f"%{q}%"))
-            | (SocialPost.hashtags.ilike(f"%{q}%"))
-        )
-
-    rows = query.order_by(SocialPost.scraped_at.desc()).limit(limit).all()
-    return [
-        {
-            "id": row.id,
-            "platform": row.platform,
-            "username": row.username,
-            "full_name": row.full_name,
-            "bio": row.bio,
-            "followers": row.followers,
-            "following": row.following,
-            "posts_count": row.posts_count,
-            "caption": row.caption,
-            "hashtags": row.hashtags,
-            "post_url": row.post_url,
-            "profile_url": row.profile_url,
-            "scraped_at": row.scraped_at.isoformat(),
-        }
-        for row in rows
-    ]
-
-
-@app.get("/api/summary")
-def summary(db: Session = Depends(get_db)):
-    total_posts = db.query(SocialPost).count()
-    total_handles = db.query(SocialPost.username).distinct().count()
-    total_followers = db.query(SocialPost.followers).filter(SocialPost.followers.isnot(None)).all()
-    follower_total = sum(v[0] for v in total_followers)
-
-    return {
-        "total_posts": total_posts,
-        "total_handles": total_handles,
-        "total_followers": follower_total,
+  <script>
+    async function loadSummary() {
+      const res = await fetch("/api/summary");
+      const data = await res.json();
+      document.getElementById("stats").innerHTML = `
+        <div class="stat-card"><span>Total posts</span><strong>${data.total_posts}</strong></div>
+        <div class="stat-card"><span>Handles</span><strong>${data.total_handles}</strong></div>
+        <div class="stat-card"><span>Followers</span><strong>${Number(data.total_followers || 0).toLocaleString()}</strong></div>
+      `;
     }
+
+    async function loadPosts() {
+      const q = document.getElementById("searchInput").value.trim();
+      const url = q ? `/api/posts?q=${encodeURIComponent(q)}&limit=50` : "/api/posts?limit=50";
+      const res = await fetch(url);
+      const posts = await res.json();
+
+      const container = document.getElementById("posts");
+      if (!posts.length) {
+        container.innerHTML = "<p>No results found.</p>";
+        return;
+      }
+
+      container.innerHTML = posts.map(post => `
+        <article class="post-card">
+          <div class="meta-line">
+            <div>
+              <strong>@${post.username}</strong><br>
+              <small>${post.platform}</small>
+            </div>
+            <a href="${post.profile_url || '#'}" target="_blank">Profile</a>
+          </div>
+
+          <p class="caption">${post.caption || "No caption provided"}</p>
+
+          <div class="tags">
+            ${post.hashtags ? post.hashtags.split(",").slice(0, 8).map(tag => `<span>#${tag.replace("#", "")}</span>`).join("") : ""}
+          </div>
+
+          <div class="details">
+            <span>Followers: ${Number(post.followers || 0).toLocaleString()}</span>
+            <span>Following: ${Number(post.following || 0).toLocaleString()}</span>
+          </div>
+
+          <div class="footer">
+            <a href="${post.post_url}" target="_blank">Open</a>
+            <span>${new Date(post.scraped_at).toLocaleString()}</span>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    loadSummary();
+    loadPosts();
+  </script>
+</body>
+</html>
