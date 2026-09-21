@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nigeria Social Media Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <h1>Nigeria Social Media Dashboard</h1>
+      <div class="search">
+        <input id="searchInput" type="text" placeholder="Search posts, hashtags, handles" />
+        <button onclick="loadPosts()">Search</button>
+      </div>
+    </header>
+
+    <section id="stats" class="stats"></section>
+    <section id="posts" class="posts"></section>
+  </div>
+
+  <script>
+    async function loadSummary() {
+      const res = await fetch("/api/summary");
+      const data = await res.json();
+      document.getElementById("stats").innerHTML = `
+        <div class="stat-card"><span>Total posts</span><strong>${data.total_posts}</strong></div>
+        <div class="stat-card"><span>Handles</span><strong>${data.total_handles}</strong></div>
+        <div class="stat-card"><span>Followers</span><strong>${Number(data.total_followers || 0).toLocaleString()}</strong></div>
+      `;
+    }
+
+    async function loadPosts() {
+      const q = document.getElementById("searchInput").value.trim();
+      const url = q ? `/api/posts?q=${encodeURIComponent(q)}&limit=50` : "/api/posts?limit=50";
+      const res = await fetch(url);
+      const posts = await res.json();
+
+      const container = document.getElementById("posts");
+      if (!posts.length) {
+        container.innerHTML = "<p>No results found.</p>";
+        return;
+      }
+
+      container.innerHTML = posts.map(post => `
+        <article class="post-card">
+          <div class="meta-line">
+            <div>
+              <strong>@${post.username}</strong><br>
+              <small>${post.platform}</small>
+            </div>
+            <a href="${post.profile_url || '#'}" target="_blank">Profile</a>
+          </div>
+
+          <p class="caption">${post.caption || "No caption provided"}</p>
+
+          <div class="tags">
+            ${post.hashtags ? post.hashtags.split(",").slice(0, 8).map(tag => `<span>#${tag.replace("#", "")}</span>`).join("") : ""}
+          </div>
+
+          <div class="details">
+            <span>Followers: ${Number(post.followers || 0).toLocaleString()}</span>
+            <span>Following: ${Number(post.following || 0).toLocaleString()}</span>
+          </div>
+
+          <div class="footer">
+            <a href="${post.post_url}" target="_blank">Open</a>
+            <span>${new Date(post.scraped_at).toLocaleString()}</span>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    loadSummary();
+    loadPosts();
+  </script>
+</body>
+</html>

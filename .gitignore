@@ -1,41 +1,75 @@
-# Prerequisites
-*.d
+# Nigeria Social Media Dashboard
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+A public social media information tool for Nigeria-focused content discovery.
 
-# Precompiled Headers
-*.gch
-*.pch
+This project collects public posts and profile summaries from:
+- X/Twitter search results
+- Instagram public profiles
 
-# Linker files
-*.ilk
+It stores the extracted data in SQLite and serves a small dashboard with a backend API.
 
-# Debugger Files
-*.pdb
+## Features
+- Nigeria-focused keyword scraping for X/Twitter
+- Public Instagram profile scraping
+- SQLite storage
+- FastAPI API
+- Dashboard UI for browsing and searching posts
+- Public-data-only approach with rate limiting
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+## Important note
+This project is intended for public information only. It does not log in, does not access private profiles, and does not bypass anti-bot protection. Respect the terms of service of each platform and keep requests modest.
 
-# Fortran module files
-*.mod
-*.smod
+## Setup
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+```bash
+pip install -r requirements.txt
+playwright install chromium
+mkdir -p data
+```
 
-# Executables
-*.exe
-*.out
-*.app
+## Configuration
+Create or edit `.env`:
 
-# debug information files
-*.dwo
+```env
+REQUEST_DELAY=4
+TWITTER_KEYWORDS=Nigeria,Lagos,Abuja,Naija,Port Harcourt,Nigerian politics,Nigerian entertainment
+INSTAGRAM_HANDLES=naijagist,lagosstateofficial,naijafootball,thenigerianvoice
+DB_PATH=./data/nigeria_social.db
+```
+
+## Scrape data
+
+```bash
+python main.py
+```
+
+## Run dashboard
+
+```bash
+uvicorn app:app --reload
+```
+
+Then open:
+
+```text
+http://localhost:8000
+```
+
+## API endpoints
+
+- `GET /api/posts` — list stored posts
+- `GET /api/summary` — quick summary counts
+- `GET /` — dashboard UI
+
+## Example
+
+```bash
+curl "http://localhost:8000/api/posts?q=Nigeria&limit=20"
+```
+
+## Planned improvements
+- Postgres migration
+- Hashtag trend analysis
+- Sentiment analysis
+- Better profile metadata extraction
+- Docker support

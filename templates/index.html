@@ -1,0 +1,70 @@
+from fastapi import FastAPI, Depends, Query
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+from sqlalchemy.orm import Session
+
+from db import get_db, SocialPost
+
+app = FastAPI(title="Nigeria Social Media Dashboard")
+
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    return templates.TemplateResponse("index.html", {"request": {}})
+
+
+@app.get("/api/posts")
+def get_posts(
+    q: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    query = db.query(SocialPost)
+
+    if q:
+        query = query.filter(
+            (SocialPost.username.ilike(f"%{q}%"))
+            | (SocialPost.caption.ilike(f"%{q}%"))
+            | (SocialPost.bio.ilike(f"%{q}%"))
+            | (SocialPost.hashtags.ilike(f"%{q}%"))
+        )
+
+    rows = query.order_by(SocialPost.scraped_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": row.id,
+            "platform": row.platform,
+            "username": row.username,
+            "full_name": row.full_name,
+            "bio": row.bio,
+            "followers": row.followers,
+            "following": row.following,
+            "posts_count": row.posts_count,
+            "caption": row.caption,
+            "hashtags": row.hashtags,
+            "post_url": row.post_url,
+            "profile_url": row.profile_url,
+            "scraped_at": row.scraped_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/summary")
+def summary(db: Session = Depends(get_db)):
+    total_posts = db.query(SocialPost).count()
+    total_handles = db.query(SocialPost.username).distinct().count()
+    total_followers = db.query(SocialPost.followers).filter(SocialPost.followers.isnot(None)).all()
+    follower_total = sum(v[0] for v in total_followers)
+
+    return {
+        "total_posts": total_posts,
+        "total_handles": total_handles,
+        "total_followers": follower_total,
+    }
